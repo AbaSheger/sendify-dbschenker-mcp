@@ -214,6 +214,8 @@ function parseEvents(raw: unknown): TrackingEvent[] {
         "date",
         "eventTime",
         "dateTime",
+        "eventDate",
+        "createdAt",
       ]),
       status: pickString(entry, [
         "status",
@@ -227,8 +229,16 @@ function parseEvents(raw: unknown): TrackingEvent[] {
         "message",
         "text",
         "eventDescription",
+        "comment",
       ]),
-      location: pickString(entry, ["location", "place", "city", "site"]),
+      location: pickString(entry, [
+        "location",
+        "place",
+        "city",
+        "site",
+        "location.name",
+        "terminal",
+      ]),
       packageId: pickString(entry, ["packageId", "package", "pieceId"]),
     };
     return [evt];
