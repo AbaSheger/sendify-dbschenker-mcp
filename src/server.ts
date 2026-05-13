@@ -70,7 +70,9 @@ export function buildServer(client: TrackingClient): McpServer {
                   error: tErr.code,
                   message: tErr.message,
                   reference,
-                  ...(tErr.status !== undefined ? { upstreamStatus: tErr.status } : {}),
+                  ...(tErr.status !== undefined
+                    ? { upstreamStatus: tErr.status }
+                    : {}),
                 },
                 null,
                 2,
@@ -87,24 +89,25 @@ export function buildServer(client: TrackingClient): McpServer {
 
 function toTrackingError(err: unknown): TrackingError {
   if (err instanceof TrackingError) return err;
-  return new TrackingError("UPSTREAM_ERROR", err instanceof Error ? err.message : String(err), {
-    cause: err,
-  });
+  return new TrackingError(
+    "UPSTREAM_ERROR",
+    err instanceof Error ? err.message : String(err),
+    {
+      cause: err,
+    },
+  );
 }
 
 function buildClientFromEnv(): TrackingClient {
   const endpoint = process.env["SCHENKER_TRACKING_URL"];
-  if (!endpoint || endpoint.trim() === "") {
-    throw new TrackingError(
-      "CONFIG_ERROR",
-      "SCHENKER_TRACKING_URL is not set. See README -> 'Discovering the endpoint'.",
-    );
-  }
   const timeoutMs = parseIntEnv("SCHENKER_TIMEOUT_MS", 10_000);
   const maxRetries = parseIntEnv("SCHENKER_MAX_RETRIES", 2);
 
   const http = new HttpClient({ timeoutMs, maxRetries });
-  return new DbSchenkerClient({ endpointTemplate: endpoint, http });
+  if (endpoint && endpoint.trim() !== "") {
+    return new DbSchenkerClient({ endpointTemplate: endpoint, http });
+  }
+  return DbSchenkerClient.withDefaultEndpoints({ http });
 }
 
 function parseIntEnv(name: string, fallback: number): number {

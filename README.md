@@ -1,37 +1,35 @@
 # DB Schenker Shipment Tracker MCP Server
 
-A [Model Context Protocol](https://modelcontextprotocol.io) server that exposes a
-single tool, `track_shipment`, for looking up DB Schenker shipments by reference
-number on the public tracking endpoint.
+A [Model Context Protocol](https://modelcontextprotocol.io) server that exposes
+one tool, `track_shipment`, for looking up DB Schenker/DSV shipments by public
+tracking reference number.
 
-Built as a submission for the
-[Sendify code challenge](https://careers.sendify.se).
+Built as a submission for the Sendify code challenge.
 
-## What it does
+## What It Does
 
 Given a DB Schenker reference number, the `track_shipment` tool returns a
 structured `Shipment` object containing:
 
-- `sender` / `receiver` — name, street, city, postal code, country
-- `packageDetails` — piece count, total weight, volume, loading meters, goods
+- `sender` / `receiver` - name, street, city, postal code, country
+- `packageDetails` - piece count, total weight, volume, loading meters, goods
   description
-- `trackingHistory` — every event for the shipment (timestamp, status,
-  description, location)
-- `packageEvents` — per-package event streams when the upstream payload
-  separates them (the challenge bonus)
-- shipment metadata — `shipmentId`, `sttNumber`, `transportMode`, `status`,
+- `trackingHistory` - every event for the shipment
+- `packageEvents` - per-package event streams when the upstream payload
+  separates them
+- shipment metadata - `shipmentId`, `sttNumber`, `transportMode`, `status`,
   `estimatedDelivery`
 
 The output schema lives in [`src/types.ts`](src/types.ts).
 
-## Quick start
+## Quick Start
 
 ### Prerequisites
 
 - Node.js 18 or later
-- npm (bundled with Node)
+- npm, bundled with Node
 
-### Install and build
+### Install And Build
 
 ```bash
 git clone https://github.com/AbaSheger/sendify-dbschenker-mcp.git
@@ -40,25 +38,27 @@ npm install
 npm run build
 ```
 
-### Configure the tracking endpoint
+### Configure The Tracking Endpoint
 
-The public tracking page at https://www.dbschenker.com/app/tracking-public/
-is a single-page app that fetches shipment data from a JSON endpoint. That
-endpoint URL is the one piece of configuration this server needs.
+No endpoint configuration is required for the challenge references. The server
+ships with default public endpoint candidates derived from the current
+DB Schenker/DSV public tracking app:
 
-Copy the example env file and fill in the URL (see
-[Discovering the endpoint](#discovering-the-endpoint) below):
+https://www.dbschenker.com/app/tracking-public/
+
+That URL currently redirects to:
+
+https://mydsv.dsv.com/app/tracking-public/
+
+If the public site changes, override the endpoint with `SCHENKER_TRACKING_URL`.
+The URL must contain `{ref}` as the placeholder for the reference number:
 
 ```bash
 cp .env.example .env
-# edit .env and set SCHENKER_TRACKING_URL
 ```
 
-The URL must contain `{ref}` as the placeholder for the reference number,
-for example:
-
-```
-SCHENKER_TRACKING_URL=https://www.dbschenker.com/api/tracking-public/shipments?refNumber={ref}
+```text
+SCHENKER_TRACKING_URL=https://mydsv.dsv.com/nges-portal/api/public/tracking-public/shipments?referenceNumber={ref}
 ```
 
 ### Run
@@ -67,8 +67,8 @@ SCHENKER_TRACKING_URL=https://www.dbschenker.com/api/tracking-public/shipments?r
 npm start
 ```
 
-The server speaks MCP over stdio (standard input / standard output), which is
-how MCP clients like Claude Desktop start local servers.
+The server speaks MCP over stdio, which is how MCP clients like Claude Desktop
+start local servers.
 
 ### Test
 
@@ -78,9 +78,9 @@ npm test
 
 Tests use mocked HTTP responses, so they run offline.
 
-## Use with Claude Desktop
+## Use With Claude Desktop
 
-Add this entry to your `claude_desktop_config.json`
+Add this entry to `claude_desktop_config.json`
 (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS,
 `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
 
@@ -90,9 +90,7 @@ Add this entry to your `claude_desktop_config.json`
     "db-schenker": {
       "command": "node",
       "args": ["/absolute/path/to/sendify-dbschenker-mcp/dist/server.js"],
-      "env": {
-        "SCHENKER_TRACKING_URL": "https://www.dbschenker.com/api/tracking-public/shipments?refNumber={ref}"
-      }
+      "env": {}
     }
   }
 }
@@ -101,13 +99,12 @@ Add this entry to your `claude_desktop_config.json`
 Restart Claude Desktop. The tool will appear as `track_shipment` and can be
 called with a reference number from the example list:
 
-```
+```text
 1806203236  1806290829  1806273700  1806272330  1806271886
 1806270433  1806268072  1806267579  1806264568  1806258974  1806256390
 ```
 
-For development without a full build, swap `node` for `tsx` and point at
-`src/server.ts`:
+For development without a full build, swap `node` for `npx` + `tsx`:
 
 ```json
 {
@@ -116,98 +113,73 @@ For development without a full build, swap `node` for `tsx` and point at
 }
 ```
 
-## Discovering the endpoint
+## Discovering The Endpoint
 
 The challenge calls out the public tracking website as the data source. That
-page is a SPA, so the actual JSON endpoint is one network call away:
+page is a SPA, so the actual JSON endpoint is discovered from the browser
+network traffic:
 
-1. Open https://www.dbschenker.com/app/tracking-public/ in Chrome
-2. Open DevTools (`Cmd+Opt+I` / `F12`) and switch to the **Network** tab
-3. Filter by **Fetch/XHR**
-4. Enter a reference number (for example `1806203236`) and submit
-5. Find the request that returns the shipment JSON (the response will contain
-   sender/receiver/events)
-6. Right-click the request, **Copy → Copy as cURL**, and read the URL and any
-   required headers from there
+1. Open https://www.dbschenker.com/app/tracking-public/ in Chrome.
+2. Open DevTools (`Cmd+Opt+I` / `F12`) and switch to the Network tab.
+3. Filter by Fetch/XHR.
+4. Enter a reference number, for example `1806203236`, and submit.
+5. Find the request that returns shipment JSON.
+6. Right-click the request, choose Copy -> Copy as cURL, and read the URL and
+   any required headers from there.
 
-Plug the URL into `.env` with `{ref}` in place of the actual reference
-number. If the request needs custom headers (for example `Accept-Language`
-or a CSRF token), add them as defaults in `src/server.ts` where
-`DbSchenkerClient` is constructed.
+The current implementation already includes the public endpoint candidates
+found this way. The env override is kept so the repo can adapt quickly if the
+upstream app moves again.
 
-The parser in [`src/parser.ts`](src/parser.ts) deliberately tolerates several
-common field-name variations (`sender` vs `consignor`, `events` vs
-`trackingHistory`, and so on), so it should handle minor shape changes
-without code edits. If you see a field name that is not yet covered, add it
-to the candidate list in that file.
+## Design Notes
 
-## Design notes
-
-A few decisions worth flagging, both because they shape the code and
-because the challenge brief mentions interview discussion of trade-offs:
-
-- **Stdio transport, not HTTP.** The MCP spec supports both. Stdio is the
-  right choice for a tool that runs as a child process of a desktop client.
-  No port management, no auth, no CORS.
+- **Stdio transport, not HTTP.** The MCP spec supports both. Stdio is the right
+  choice for a tool that runs as a child process of a desktop client.
 - **One tool, narrow contract.** `track_shipment` takes a single string and
-  returns a single typed object. A larger tool surface (search, subscribe,
-  list) would be tempting but is outside the brief and would dilute the
-  schema the LLM has to reason about.
+  returns a typed object. A larger tool surface is outside the brief.
 - **Defensive parser, strict output.** The upstream payload shape is
-  undocumented and may shift over time. The parser
-  ([`src/parser.ts`](src/parser.ts)) reads through a small candidate list
-  for each field and falls back to `null`. The output is then validated
-  against a strict Zod schema, so callers get a stable contract even when
-  the upstream wobbles.
-- **Typed error codes.** [`src/errors.ts`](src/errors.ts) defines a small
-  set of codes (`NOT_FOUND`, `RATE_LIMITED`, `UPSTREAM_ERROR`, `TIMEOUT`,
-  `PARSE_ERROR`, `INVALID_REFERENCE`, `CONFIG_ERROR`, `NETWORK_ERROR`).
-  The server returns these in the tool's error payload so an LLM (or any
-  caller) can branch on them deterministically. Compare with returning a
-  bare string: harder to act on, harder to test.
-- **Retry with backoff for transient failures only.** The HTTP client
-  retries on 429, 5xx, timeouts, and network errors with exponential
-  backoff plus jitter. It does not retry on 4xx, because those are
-  user-input problems that retry will not fix.
-- **Endpoint URL is configuration, not code.** The DB Schenker SPA could
-  move tomorrow. Keeping the URL in `.env` means a swap is a single line
-  edit, not a release.
-- **Dependency injection in the tracking client.** `DbSchenkerClient`
-  takes its `HttpClient` as a constructor argument, and `HttpClient` takes
-  its `fetch` as a constructor argument. That is why the tests can run
-  without ever opening a real socket. Same shape, real or fake.
+  undocumented. The parser reads through candidate field names and falls back
+  to `null`, while the MCP tool exposes a stable Zod schema.
+- **Typed error codes.** [`src/errors.ts`](src/errors.ts) defines stable codes
+  such as `NOT_FOUND`, `RATE_LIMITED`, `TIMEOUT`, and `PARSE_ERROR`.
+- **Retry with backoff.** The HTTP client retries transient failures only:
+  429, 5xx, timeouts, and network errors.
+- **Default public endpoints, with env override.** The server works without
+  reviewer-side DevTools setup, but `SCHENKER_TRACKING_URL` remains available
+  as a one-line override.
+- **Dependency injection.** `DbSchenkerClient` takes its `HttpClient`, and
+  `HttpClient` takes its `fetch`, so tests run without real network calls.
 
-## Project structure
+## Project Structure
 
-```
+```text
 src/
-├── server.ts            # MCP server, tool registration, env wiring
-├── tracking-client.ts   # DbSchenkerClient (calls the public endpoint)
-├── parser.ts            # Defensive raw-payload to Shipment mapper
-├── http.ts              # fetch wrapper with timeout, retry, typed errors
-├── errors.ts            # TrackingError and TrackingErrorCode
-└── types.ts             # Zod schemas + inferred TypeScript types
+|-- server.ts            # MCP server, tool registration, env wiring
+|-- tracking-client.ts   # DbSchenkerClient and endpoint fallback client
+|-- parser.ts            # Defensive raw-payload to Shipment mapper
+|-- http.ts              # fetch wrapper with timeout, retry, typed errors
+|-- errors.ts            # TrackingError and TrackingErrorCode
+`-- types.ts             # Zod schemas and inferred TypeScript types
 
 tests/
-├── parser.test.ts
-├── tracking-client.test.ts
-├── server.test.ts
-└── fixtures.ts
+|-- parser.test.ts
+|-- tracking-client.test.ts
+|-- server.test.ts
+`-- fixtures.ts
 ```
 
-## Environment variables
+## Environment Variables
 
-| Variable                | Required | Default | Purpose                                                     |
-|-------------------------|----------|---------|-------------------------------------------------------------|
-| `SCHENKER_TRACKING_URL` | yes      | -       | Endpoint template, must contain `{ref}`                     |
-| `SCHENKER_TIMEOUT_MS`   | no       | `10000` | Per-request timeout in milliseconds                         |
-| `SCHENKER_MAX_RETRIES`  | no       | `2`     | Retry attempts for transient failures (429, 5xx, timeouts)  |
-| `DEBUG`                 | no       | `0`     | Set to `1` for verbose logging to stderr                    |
+| Variable | Required | Default | Purpose |
+| --- | --- | --- | --- |
+| `SCHENKER_TRACKING_URL` | no | built in | Endpoint template override, must contain `{ref}` |
+| `SCHENKER_TIMEOUT_MS` | no | `10000` | Per-request timeout in milliseconds |
+| `SCHENKER_MAX_RETRIES` | no | `2` | Retry attempts for transient failures |
+| `DEBUG` | no | `0` | Set to `1` for verbose logging to stderr |
 
-## Error responses
+## Error Responses
 
-When the tool fails, it returns an error result with a JSON body of this
-shape:
+When the tool fails, it returns an error result with a JSON body:
 
 ```json
 {
@@ -221,21 +193,16 @@ shape:
 
 `error` is one of the codes listed in [`src/errors.ts`](src/errors.ts).
 
-## What I would do with more time
+## What I Would Do With More Time
 
-- **Replace the env-driven endpoint with a discovery step at startup.** Hit
-  the public tracking page once, parse the bundle, extract the API base
-  URL. That removes the manual DevTools step and makes the server
-  self-configuring.
-- **Add a `subscribe_shipment` tool** that streams new events as
-  notifications, using MCP's `LoggingMessageNotification` channel.
-- **Cache successful lookups for a short window.** The example references
-  return the same data minute-to-minute, and a 30 second TTL would
-  noticeably reduce upstream load.
-- **Generate the parser candidate list from a real-payload fixture.**
-  Capture a few real responses, snapshot them, and let CI flag drift.
-- **Wire up `playwright`-based fallback** for the case where the upstream
-  blocks programmatic requests. Slower, but more resilient.
+- Add endpoint discovery at startup by parsing the tracking app bundle and
+  refreshing the public endpoint candidates automatically.
+- Add a `subscribe_shipment` tool that streams new events as MCP notifications.
+- Cache successful lookups for a short window to reduce upstream load.
+- Capture a few real upstream payloads, redact them, and use them as parser
+  regression fixtures.
+- Add a Playwright-based fallback for cases where the upstream blocks direct
+  programmatic requests.
 
 ## License
 

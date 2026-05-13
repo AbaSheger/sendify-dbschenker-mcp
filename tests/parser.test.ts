@@ -5,7 +5,9 @@ import { mockShipmentPayload } from "./fixtures.js";
 
 describe("parseShipment", () => {
   it("extracts the documented fields from a well-formed payload", () => {
-    const result = parseShipment(mockShipmentPayload, { reference: "1806203236" });
+    const result = parseShipment(mockShipmentPayload, {
+      reference: "1806203236",
+    });
     expect(result).not.toBeNull();
     const parsed = ShipmentSchema.parse(result);
 
@@ -14,7 +16,7 @@ describe("parseShipment", () => {
     expect(parsed.sttNumber).toBe("STT-12345");
     expect(parsed.transportMode).toBe("LAND");
 
-    expect(parsed.sender.city).toBe("Göteborg");
+    expect(parsed.sender.city).toBe("Goteborg");
     expect(parsed.receiver.country).toBe("DE");
 
     expect(parsed.packageDetails.pieceCount).toBe(3);
@@ -27,7 +29,10 @@ describe("parseShipment", () => {
   });
 
   it("falls back to nulls when fields are missing", () => {
-    const result = parseShipment({ data: { sender: {}, receiver: {} } }, { reference: "x" });
+    const result = parseShipment(
+      { data: { sender: {}, receiver: {} } },
+      { reference: "x" },
+    );
     expect(result).not.toBeNull();
     const parsed = ShipmentSchema.parse(result);
     expect(parsed.sender.name).toBeNull();

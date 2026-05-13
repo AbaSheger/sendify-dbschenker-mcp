@@ -38,10 +38,30 @@ export function parseShipment(raw: Json, opts: ParseOptions): Shipment | null {
 
   return {
     reference: opts.reference,
-    shipmentId: pickString(root, ["id", "shipmentId", "shipment.id"]),
-    sttNumber: pickString(root, ["stt", "sttNumber", "trackTraceNumber"]),
-    transportMode: pickString(root, ["transportMode", "mode", "shipment.transportMode"]),
-    status: pickString(root, ["status", "currentStatus", "latestStatus.code"]),
+    shipmentId: pickString(root, [
+      "id",
+      "shipmentId",
+      "shipment.id",
+      "shipmentReferenceNumber",
+    ]),
+    sttNumber: pickString(root, [
+      "stt",
+      "sttNumber",
+      "trackTraceNumber",
+      "sttNo",
+    ]),
+    transportMode: pickString(root, [
+      "transportMode",
+      "mode",
+      "shipment.transportMode",
+      "product",
+    ]),
+    status: pickString(root, [
+      "status",
+      "currentStatus",
+      "latestStatus.code",
+      "progressBar.activeStep",
+    ]),
     estimatedDelivery: pickString(root, [
       "estimatedDelivery",
       "eta",
@@ -78,8 +98,20 @@ function unwrapRoot(raw: Json): Record<string, unknown> | null {
 // --- field path candidates -------------------------------------------------
 
 const ADDRESS_PATHS = {
-  sender: ["sender", "shipper", "from", "consignor"] as const,
-  receiver: ["receiver", "consignee", "to", "recipient"] as const,
+  sender: [
+    "sender",
+    "shipper",
+    "from",
+    "consignor",
+    "references.sender",
+  ] as const,
+  receiver: [
+    "receiver",
+    "consignee",
+    "to",
+    "recipient",
+    "references.receiver",
+  ] as const,
 };
 
 const EVENT_PATHS = {
@@ -89,14 +121,28 @@ const EVENT_PATHS = {
     "history",
     "trackingEvents",
     "statusHistory",
+    "trackAndTrace",
+    "events.history",
   ] as const,
   perPackage: ["packageEvents", "perPackageEvents", "packages"] as const,
 };
 
 const PACKAGE_FIELD_PATHS = {
-  pieceCount: ["pieceCount", "pieces", "numberOfPieces", "totalPieces"],
-  totalWeightKg: ["totalWeightKg", "weightKg", "totalWeight", "weight"],
-  totalVolumeM3: ["totalVolumeM3", "volumeM3", "volume"],
+  pieceCount: [
+    "pieceCount",
+    "pieces",
+    "numberOfPieces",
+    "totalPieces",
+    "quantity",
+  ],
+  totalWeightKg: [
+    "totalWeightKg",
+    "weightKg",
+    "totalWeight",
+    "weight",
+    "grossWeight",
+  ],
+  totalVolumeM3: ["totalVolumeM3", "volumeM3", "volume", "grossVolume"],
   loadingMeters: ["loadingMeters", "ldm"],
   goodsDescription: ["goodsDescription", "description", "goods"],
 } as const;
@@ -105,7 +151,13 @@ const PACKAGE_FIELD_PATHS = {
 
 function parseAddress(raw: unknown): Address {
   if (!isObject(raw)) {
-    return { name: null, street: null, city: null, postalCode: null, country: null };
+    return {
+      name: null,
+      street: null,
+      city: null,
+      postalCode: null,
+      country: null,
+    };
   }
   return {
     name: pickString(raw, ["name", "companyName", "fullName"]),
@@ -120,7 +172,7 @@ function parsePackageDetails(raw: Record<string, unknown>): PackageDetails {
   // Some payloads put package data inline at the root, others under "packageDetails"
   // or "totals". Merge a few candidate sources before extracting.
   const sources: Array<Record<string, unknown>> = [raw];
-  for (const key of ["packageDetails", "totals", "summary"]) {
+  for (const key of ["packageDetails", "totals", "summary", "goods", "cargo"]) {
     const v = raw[key];
     if (isObject(v)) sources.push(v);
   }
@@ -133,7 +185,9 @@ function parsePackageDetails(raw: Record<string, unknown>): PackageDetails {
   }
 
   return {
-    pieceCount: pickNumber(merged, PACKAGE_FIELD_PATHS.pieceCount, { integer: true }),
+    pieceCount: pickNumber(merged, PACKAGE_FIELD_PATHS.pieceCount, {
+      integer: true,
+    }),
     totalWeightKg: pickNumber(merged, PACKAGE_FIELD_PATHS.totalWeightKg),
     totalVolumeM3: pickNumber(merged, PACKAGE_FIELD_PATHS.totalVolumeM3),
     loadingMeters: pickNumber(merged, PACKAGE_FIELD_PATHS.loadingMeters),
@@ -146,9 +200,26 @@ function parseEvents(raw: unknown): TrackingEvent[] {
   return raw.flatMap((entry) => {
     if (!isObject(entry)) return [];
     const evt: TrackingEvent = {
-      timestamp: pickString(entry, ["timestamp", "time", "date", "eventTime"]),
-      status: pickString(entry, ["status", "code", "statusCode", "eventCode"]),
-      description: pickString(entry, ["description", "message", "text", "eventDescription"]),
+      timestamp: pickString(entry, [
+        "timestamp",
+        "time",
+        "date",
+        "eventTime",
+        "dateTime",
+      ]),
+      status: pickString(entry, [
+        "status",
+        "code",
+        "statusCode",
+        "eventCode",
+        "event",
+      ]),
+      description: pickString(entry, [
+        "description",
+        "message",
+        "text",
+        "eventDescription",
+      ]),
       location: pickString(entry, ["location", "place", "city", "site"]),
       packageId: pickString(entry, ["packageId", "package", "pieceId"]),
     };
@@ -184,7 +255,10 @@ function pick(obj: Record<string, unknown>, keys: readonly string[]): unknown {
   return undefined;
 }
 
-function pickString(obj: Record<string, unknown>, keys: readonly string[]): string | null {
+function pickString(
+  obj: Record<string, unknown>,
+  keys: readonly string[],
+): string | null {
   const v = pick(obj, keys);
   if (typeof v === "string") return v.trim() || null;
   if (typeof v === "number" || typeof v === "boolean") return String(v);

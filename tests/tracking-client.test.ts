@@ -13,7 +13,10 @@ function mockFetch(handler: (url: string) => Response): typeof fetch {
 }
 
 function makeClient(handler: (url: string) => Response): DbSchenkerClient {
-  const http = new HttpClient({ timeoutMs: 1_000, maxRetries: 0 }, mockFetch(handler));
+  const http = new HttpClient(
+    { timeoutMs: 1_000, maxRetries: 0 },
+    mockFetch(handler),
+  );
   return new DbSchenkerClient({
     endpointTemplate: "https://mock.example.com/tracking?ref={ref}",
     http,
@@ -22,16 +25,17 @@ function makeClient(handler: (url: string) => Response): DbSchenkerClient {
 
 describe("DbSchenkerClient", () => {
   it("returns a parsed shipment for a successful response", async () => {
-    const client = makeClient(() =>
-      new Response(JSON.stringify(mockShipmentPayload), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
+    const client = makeClient(
+      () =>
+        new Response(JSON.stringify(mockShipmentPayload), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
     );
     const shipment = await client.trackShipment("1806203236");
     expect(shipment.reference).toBe("1806203236");
     expect(shipment.shipmentId).toBe("SHP-0001");
-    expect(shipment.sender.city).toBe("Göteborg");
+    expect(shipment.sender.city).toBe("Goteborg");
     expect(shipment.trackingHistory.length).toBeGreaterThan(0);
   });
 
@@ -67,7 +71,9 @@ describe("DbSchenkerClient", () => {
     await expect(client.trackShipment("   ")).rejects.toMatchObject({
       code: "INVALID_REFERENCE",
     });
-    await expect(client.trackShipment("DROP TABLE shipments")).rejects.toMatchObject({
+    await expect(
+      client.trackShipment("DROP TABLE shipments"),
+    ).rejects.toMatchObject({
       code: "INVALID_REFERENCE",
     });
     expect(called).toBe(false);

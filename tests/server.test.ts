@@ -14,7 +14,9 @@ function fakeClient(
 
 describe("MCP server tool handler", () => {
   it("returns structured shipment content on success", async () => {
-    const happy = parseShipment(mockShipmentPayload, { reference: "1806203236" });
+    const happy = parseShipment(mockShipmentPayload, {
+      reference: "1806203236",
+    });
     if (!happy) throw new Error("fixture should parse");
 
     const server = buildServer(fakeClient(async () => happy));
@@ -46,7 +48,10 @@ describe("MCP server tool handler", () => {
 });
 
 interface RegisteredToolLike {
-  handler: (args: unknown, extra: unknown) => Promise<{
+  handler: (
+    args: unknown,
+    extra: unknown,
+  ) => Promise<{
     isError?: boolean;
     content: Array<{ type: string; text: string }>;
     structuredContent?: Record<string, unknown>;
@@ -54,8 +59,9 @@ interface RegisteredToolLike {
 }
 
 function getRegisteredTool(server: unknown, name: string): RegisteredToolLike {
-  const tools = (server as { _registeredTools: Record<string, RegisteredToolLike> })
-    ._registeredTools;
+  const tools = (
+    server as { _registeredTools: Record<string, RegisteredToolLike> }
+  )._registeredTools;
   const tool = tools[name];
   if (!tool) throw new Error(`tool not registered: ${name}`);
   return tool;

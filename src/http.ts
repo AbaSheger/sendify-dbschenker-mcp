@@ -40,7 +40,10 @@ export class HttpClient {
     this.fetchImpl = fetchImpl;
   }
 
-  async getJson(url: string, headers: Record<string, string> = {}): Promise<HttpResponse> {
+  async getJson(
+    url: string,
+    headers: Record<string, string> = {},
+  ): Promise<HttpResponse> {
     let attempt = 0;
     let lastError: TrackingError | undefined;
 
@@ -48,9 +51,10 @@ export class HttpClient {
       try {
         return await this.requestOnce(url, headers);
       } catch (err) {
-        const tErr = err instanceof TrackingError
-          ? err
-          : new TrackingError("NETWORK_ERROR", String(err), { cause: err });
+        const tErr =
+          err instanceof TrackingError
+            ? err
+            : new TrackingError("NETWORK_ERROR", String(err), { cause: err });
         lastError = tErr;
         if (!tErr.isRetryable() || attempt === this.maxRetries) {
           throw tErr;
@@ -86,31 +90,49 @@ export class HttpClient {
       const contentType = res.headers.get("content-type");
 
       if (res.status === 429) {
-        throw new TrackingError("RATE_LIMITED", "upstream rate-limited the request", {
-          status: 429,
-        });
+        throw new TrackingError(
+          "RATE_LIMITED",
+          "upstream rate-limited the request",
+          {
+            status: 429,
+          },
+        );
       }
       if (res.status === 404) {
-        throw new TrackingError("NOT_FOUND", "shipment not found", { status: 404 });
+        throw new TrackingError("NOT_FOUND", "shipment not found", {
+          status: 404,
+        });
       }
       if (res.status >= 500) {
-        throw new TrackingError("UPSTREAM_ERROR", `upstream returned ${res.status}`, {
-          status: res.status,
-        });
+        throw new TrackingError(
+          "UPSTREAM_ERROR",
+          `upstream returned ${res.status}`,
+          {
+            status: res.status,
+          },
+        );
       }
       if (res.status >= 400) {
-        throw new TrackingError("UPSTREAM_ERROR", `upstream returned ${res.status}`, {
-          status: res.status,
-        });
+        throw new TrackingError(
+          "UPSTREAM_ERROR",
+          `upstream returned ${res.status}`,
+          {
+            status: res.status,
+          },
+        );
       }
 
       return { status: res.status, body, contentType };
     } catch (err) {
       if (err instanceof TrackingError) throw err;
       if (err instanceof Error && err.name === "AbortError") {
-        throw new TrackingError("TIMEOUT", `request timed out after ${this.timeoutMs}ms`, {
-          cause: err,
-        });
+        throw new TrackingError(
+          "TIMEOUT",
+          `request timed out after ${this.timeoutMs}ms`,
+          {
+            cause: err,
+          },
+        );
       }
       throw new TrackingError("NETWORK_ERROR", String(err), { cause: err });
     } finally {

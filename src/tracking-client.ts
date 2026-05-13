@@ -21,6 +21,16 @@ export interface DbSchenkerClientOptions {
   extraHeaders?: Record<string, string>;
 }
 
+const DEFAULT_ENDPOINT_TEMPLATES = [
+  "https://mydsv.dsv.com/nges-portal/api/public/tracking-public/shipments?referenceNumber={ref}",
+  "https://mydsv.dsv.com/nges-portal/api/public/tracking/v1/shipments?referenceNumber={ref}",
+];
+
+const DEFAULT_HEADERS = {
+  "Accept-Language": "en-US",
+  "X-Version": "4",
+};
+
 /**
  * Calls the DB Schenker public tracking endpoint and projects the response
  * into the `Shipment` shape promised by the MCP tool.
@@ -31,7 +41,7 @@ export interface DbSchenkerClientOptions {
  * Schenker server.
  */
 export class DbSchenkerClient implements TrackingClient {
-  private readonly endpointTemplate: string;
+  private readonly endpointTemplates: string[];
   private readonly http: HttpClient;
   private readonly extraHeaders: Record<string, string>;
 
@@ -42,9 +52,15 @@ export class DbSchenkerClient implements TrackingClient {
         "endpointTemplate must include the {ref} placeholder",
       );
     }
-    this.endpointTemplate = opts.endpointTemplate;
+    this.endpointTemplates = [opts.endpointTemplate];
     this.http = opts.http ?? new HttpClient();
-    this.extraHeaders = opts.extraHeaders ?? {};
+    this.extraHeaders = { ...DEFAULT_HEADERS, ...opts.extraHeaders };
+  }
+
+  static withDefaultEndpoints(
+    opts: Omit<DbSchenkerClientOptions, "endpointTemplate">,
+  ): TrackingClient {
+    return new MultiEndpointTrackingClient(DEFAULT_ENDPOINT_TEMPLATES, opts);
   }
 
   async trackShipment(reference: string): Promise<Shipment> {
@@ -59,7 +75,16 @@ export class DbSchenkerClient implements TrackingClient {
       );
     }
 
-    const url = this.endpointTemplate.replace("{ref}", encodeURIComponent(ref));
+    const url = this.endpointTemplates[0]?.replace(
+      "{ref}",
+      encodeURIComponent(ref),
+    );
+    if (!url) {
+      throw new TrackingError(
+        "CONFIG_ERROR",
+        "no endpoint templates configured",
+      );
+    }
     const response = await this.http.getJson(url, this.extraHeaders);
 
     let raw: unknown;
@@ -76,8 +101,54 @@ export class DbSchenkerClient implements TrackingClient {
     const shipment = parseShipment(raw, { reference: ref });
     if (!shipment) {
       // Some upstreams return a 200 with an empty body for "not found"
-      throw new TrackingError("NOT_FOUND", "no shipment found for that reference");
+      throw new TrackingError(
+        "NOT_FOUND",
+        "no shipment found for that reference",
+      );
     }
     return shipment;
+  }
+}
+
+class MultiEndpointTrackingClient implements TrackingClient {
+  private readonly clients: DbSchenkerClient[];
+
+  constructor(
+    endpointTemplates: string[],
+    opts: Omit<DbSchenkerClientOptions, "endpointTemplate">,
+  ) {
+    this.clients = endpointTemplates.map(
+      (endpointTemplate) => new DbSchenkerClient({ ...opts, endpointTemplate }),
+    );
+  }
+
+  async trackShipment(reference: string): Promise<Shipment> {
+    let lastError: TrackingError | undefined;
+
+    for (const client of this.clients) {
+      try {
+        return await client.trackShipment(reference);
+      } catch (err) {
+        const tErr =
+          err instanceof TrackingError
+            ? err
+            : new TrackingError("UPSTREAM_ERROR", String(err), { cause: err });
+        lastError = tErr;
+
+        if (
+          tErr.code === "INVALID_REFERENCE" ||
+          tErr.code === "RATE_LIMITED" ||
+          tErr.code === "TIMEOUT" ||
+          tErr.code === "NETWORK_ERROR"
+        ) {
+          throw tErr;
+        }
+      }
+    }
+
+    throw (
+      lastError ??
+      new TrackingError("NOT_FOUND", "no shipment found for that reference")
+    );
   }
 }

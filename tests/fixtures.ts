@@ -1,11 +1,7 @@
 /**
- * Synthetic payload that matches the shape we expect from the public
- * tracking endpoint. The field names below are based on the patterns
- * documented in the parser (sender, receiver, packageDetails, events).
- *
- * If the real upstream payload uses different names, extend the candidate
- * paths in src/parser.ts rather than changing tests, so the parser stays
- * tolerant of shape drift.
+ * Synthetic payload that matches the kind of shape we expect from the public
+ * tracking endpoint. Keep this fixture local and deterministic; live endpoint
+ * checks belong in manual verification because the upstream can rate-limit.
  */
 export const mockShipmentPayload = {
   data: {
@@ -17,7 +13,7 @@ export const mockShipmentPayload = {
     sender: {
       name: "Acme AB",
       street: "Storgatan 1",
-      city: "Göteborg",
+      city: "Goteborg",
       postalCode: "41115",
       country: "SE",
     },
@@ -40,7 +36,7 @@ export const mockShipmentPayload = {
         timestamp: "2026-05-10T08:00:00Z",
         status: "PICKED_UP",
         description: "Shipment picked up at sender",
-        location: "Göteborg",
+        location: "Goteborg",
         packageId: null,
       },
       {
@@ -59,7 +55,7 @@ export const mockShipmentPayload = {
             timestamp: "2026-05-10T08:00:00Z",
             status: "PICKED_UP",
             description: "Picked up",
-            location: "Göteborg",
+            location: "Goteborg",
             packageId: "PKG-1",
           },
         ],
