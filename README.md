@@ -61,6 +61,17 @@ cp .env.example .env
 SCHENKER_TRACKING_URL=https://mydsv.dsv.com/nges-portal/api/public/tracking-public/shipments?referenceNumber={ref}
 ```
 
+The default client uses the current public search flow:
+
+1. Search `/shipments?query=<reference>` to resolve the shipment/STT id.
+2. Fetch shipment details from `/shipments/land/<id>`.
+3. Fetch trip data from `/shipments/land/<id>/trip` when available.
+4. Normalize the result into the stable MCP `Shipment` schema.
+
+When the public API returns a `Captcha-Puzzle` header, the HTTP client solves
+the proof-of-work challenge and retries once with `Captcha-Solution`, including
+the upstream session cookie from the challenge response.
+
 ### Run
 
 ```bash
@@ -144,6 +155,10 @@ upstream app moves again.
   such as `NOT_FOUND`, `RATE_LIMITED`, `TIMEOUT`, and `PARSE_ERROR`.
 - **Retry with backoff.** The HTTP client retries transient failures only:
   429, 5xx, timeouts, and network errors.
+- **CAPTCHA challenge handling.** The public endpoint sometimes responds with
+  a proof-of-work `Captcha-Puzzle`. The server solves that challenge in Node,
+  retries with `Captcha-Solution`, and returns typed errors if the upstream
+  rejects the solution.
 - **Default public endpoints, with env override.** The server works without
   reviewer-side DevTools setup, but `SCHENKER_TRACKING_URL` remains available
   as a one-line override.

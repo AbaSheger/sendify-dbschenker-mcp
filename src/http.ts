@@ -1,4 +1,10 @@
 import { TrackingError } from "./errors.js";
+import {
+  cookieFromSetCookie,
+  getCaptchaPuzzle,
+  hasCaptchaPuzzle,
+  solveCaptchaPuzzle,
+} from "./captcha.js";
 
 export interface HttpClientOptions {
   timeoutMs?: number;
@@ -76,15 +82,25 @@ export class HttpClient {
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
+      const requestHeaders = {
+        Accept: "application/json",
+        "User-Agent": this.userAgent,
+        ...headers,
+      };
+
       const res = await this.fetchImpl(url, {
         method: "GET",
         signal: controller.signal,
-        headers: {
-          Accept: "application/json",
-          "User-Agent": this.userAgent,
-          ...headers,
-        },
+        headers: requestHeaders,
       });
+
+      const captchaResponse = await this.retryWithCaptchaSolution(
+        url,
+        res,
+        requestHeaders,
+        controller.signal,
+      );
+      if (captchaResponse) return captchaResponse;
 
       const body = await res.text();
       const contentType = res.headers.get("content-type");
@@ -138,6 +154,85 @@ export class HttpClient {
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  private async retryWithCaptchaSolution(
+    url: string,
+    res: Response,
+    requestHeaders: Record<string, string>,
+    signal: AbortSignal,
+  ): Promise<HttpResponse | null> {
+    const puzzle = getCaptchaPuzzle(res.headers);
+    if (res.status !== 429 || !puzzle) return null;
+
+    let solution: string;
+    try {
+      solution = await solveCaptchaPuzzle(puzzle);
+    } catch (err) {
+      throw new TrackingError(
+        "CAPTCHA_REQUIRED",
+        "upstream CAPTCHA could not be solved",
+        {
+          status: 429,
+          cause: err,
+        },
+      );
+    }
+
+    const cookie = cookieFromSetCookie(res.headers);
+    const retryHeaders = {
+      ...requestHeaders,
+      "Captcha-Solution": solution,
+      ...(cookie ? { Cookie: cookie } : {}),
+    };
+
+    const retryRes = await this.fetchImpl(url, {
+      method: "GET",
+      signal,
+      headers: retryHeaders,
+    });
+    const body = await retryRes.text();
+    const contentType = retryRes.headers.get("content-type");
+
+    if (retryRes.status === 422) {
+      throw new TrackingError(
+        "CAPTCHA_SOLUTION_INVALID",
+        "upstream rejected the CAPTCHA solution",
+        { status: 422 },
+      );
+    }
+    if (retryRes.status === 429 && hasCaptchaPuzzle(retryRes.headers)) {
+      throw new TrackingError(
+        "CAPTCHA_REQUIRED",
+        "upstream still requires a fresh CAPTCHA solution",
+        { status: 429 },
+      );
+    }
+    if (retryRes.status === 404) {
+      throw new TrackingError("NOT_FOUND", "shipment not found", {
+        status: 404,
+      });
+    }
+    if (retryRes.status >= 500) {
+      throw new TrackingError(
+        "UPSTREAM_ERROR",
+        `upstream returned ${retryRes.status}`,
+        {
+          status: retryRes.status,
+        },
+      );
+    }
+    if (retryRes.status >= 400) {
+      throw new TrackingError(
+        "UPSTREAM_ERROR",
+        `upstream returned ${retryRes.status}`,
+        {
+          status: retryRes.status,
+        },
+      );
+    }
+
+    return { status: retryRes.status, body, contentType };
   }
 }
 

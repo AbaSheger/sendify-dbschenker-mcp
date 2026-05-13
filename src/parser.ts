@@ -66,6 +66,8 @@ export function parseShipment(raw: Json, opts: ParseOptions): Shipment | null {
       "estimatedDelivery",
       "eta",
       "estimatedDeliveryDate",
+      "deliveryDate.estimated",
+      "deliveryDate.agreed",
     ]),
     sender,
     receiver,
@@ -103,6 +105,9 @@ const ADDRESS_PATHS = {
     "shipper",
     "from",
     "consignor",
+    "location.collectFrom",
+    "location.shipperPlace",
+    "location.shipper",
     "references.sender",
   ] as const,
   receiver: [
@@ -110,6 +115,9 @@ const ADDRESS_PATHS = {
     "consignee",
     "to",
     "recipient",
+    "location.deliverTo",
+    "location.consigneePlace",
+    "location.consignee",
     "references.receiver",
   ] as const,
 };
@@ -162,7 +170,7 @@ function parseAddress(raw: unknown): Address {
   return {
     name: pickString(raw, ["name", "companyName", "fullName"]),
     street: pickString(raw, ["street", "addressLine1", "address"]),
-    city: pickString(raw, ["city", "town"]),
+    city: pickString(raw, ["city", "town", "cityName"]),
     postalCode: pickString(raw, ["postalCode", "zip", "zipCode", "postCode"]),
     country: pickString(raw, ["country", "countryCode", "countryName"]),
   };
@@ -273,6 +281,10 @@ function pickNumber(
   const v = pick(obj, keys);
   if (typeof v === "number" && Number.isFinite(v)) {
     return opts.integer ? Math.trunc(v) : v;
+  }
+  if (isObject(v)) {
+    const nested = pickNumber(v, ["value"], opts);
+    if (nested !== null) return nested;
   }
   if (typeof v === "string" && v.trim() !== "") {
     const n = Number(v);

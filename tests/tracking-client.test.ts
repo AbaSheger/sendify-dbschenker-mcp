@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { DbSchenkerClient } from "../src/tracking-client.js";
+import {
+  DbSchenkerClient,
+  DbSchenkerPublicClient,
+} from "../src/tracking-client.js";
 import { HttpClient } from "../src/http.js";
 import { TrackingError } from "../src/errors.js";
 import { mockShipmentPayload } from "./fixtures.js";
@@ -102,5 +105,93 @@ describe("DbSchenkerClient", () => {
           endpointTemplate: "https://example.com/no-placeholder",
         }),
     ).toThrow(TrackingError);
+  });
+});
+
+describe("DbSchenkerPublicClient", () => {
+  it("uses the current public search/details flow and returns structured shipment data", async () => {
+    const http = new HttpClient(
+      { timeoutMs: 1_000, maxRetries: 0 },
+      mockFetch((url) => {
+        if (url.includes("/shipments?query=1806203236")) {
+          return new Response(
+            JSON.stringify({
+              result: [
+                {
+                  id: "LandStt:SENYB550963155",
+                  stt: "SENYB550963155",
+                  transportMode: "LAND",
+                  lastEventCode: "PICKED_UP",
+                  percentageProgress: 40,
+                },
+              ],
+            }),
+            { status: 200 },
+          );
+        }
+
+        if (url.includes("/shipments/land/LandStt%3ASENYB550963155/trip")) {
+          return new Response(
+            JSON.stringify({ start: null, end: null, trip: [] }),
+            {
+              status: 200,
+            },
+          );
+        }
+
+        if (url.includes("/shipments/land/LandStt%3ASENYB550963155")) {
+          return new Response(
+            JSON.stringify({
+              location: {
+                shipper: {
+                  companyName: "Sender AB",
+                  cityName: "Stockholm",
+                  zipCode: "11122",
+                  countryCode: "SE",
+                },
+                consignee: {
+                  companyName: "Receiver GmbH",
+                  cityName: "Berlin",
+                  zipCode: "10115",
+                  countryCode: "DE",
+                },
+              },
+              goods: {
+                pieces: 2,
+                weight: { value: 12.5, unit: "kg" },
+                volume: { value: 0.4, unit: "m3" },
+              },
+              events: [
+                {
+                  code: "PICKED_UP",
+                  date: "2026-05-10T08:00:00Z",
+                  comment: "Picked up",
+                  location: { name: "Stockholm", countryCode: "SE" },
+                },
+              ],
+              packages: [
+                {
+                  id: "PKG-1",
+                  events: [{ code: "PICKED_UP", date: "2026-05-10T08:00:00Z" }],
+                },
+              ],
+            }),
+            { status: 200 },
+          );
+        }
+
+        return new Response("", { status: 404 });
+      }),
+    );
+    const client = new DbSchenkerPublicClient({ http });
+    const shipment = await client.trackShipment("1806203236");
+
+    expect(shipment.sttNumber).toBe("SENYB550963155");
+    expect(shipment.sender.name).toBe("Sender AB");
+    expect(shipment.receiver.city).toBe("Berlin");
+    expect(shipment.packageDetails.pieceCount).toBe(2);
+    expect(shipment.packageDetails.totalWeightKg).toBe(12.5);
+    expect(shipment.trackingHistory[0]?.status).toBe("PICKED_UP");
+    expect(shipment.packageEvents["PKG-1"]).toHaveLength(1);
   });
 });

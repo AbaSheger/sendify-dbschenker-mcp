@@ -13,7 +13,9 @@ export type TrackingErrorCode =
   | "NETWORK_ERROR"
   | "TIMEOUT"
   | "PARSE_ERROR"
-  | "CONFIG_ERROR";
+  | "CONFIG_ERROR"
+  | "CAPTCHA_REQUIRED"
+  | "CAPTCHA_SOLUTION_INVALID";
 
 export class TrackingError extends Error {
   public readonly code: TrackingErrorCode;
