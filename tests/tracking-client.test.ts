@@ -192,6 +192,8 @@ describe("DbSchenkerPublicClient", () => {
     expect(shipment.packageDetails.pieceCount).toBe(2);
     expect(shipment.packageDetails.totalWeightKg).toBe(12.5);
     expect(shipment.trackingHistory[0]?.status).toBe("PICKED_UP");
+    expect(shipment.trackingHistory[0]?.description).toBe("Picked up");
+    expect(shipment.trackingHistory[0]?.location).toBe("Stockholm");
     expect(shipment.packageEvents["PKG-1"]).toHaveLength(1);
   });
 });

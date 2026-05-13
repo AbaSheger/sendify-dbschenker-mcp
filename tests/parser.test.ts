@@ -57,6 +57,25 @@ describe("parseShipment", () => {
     expect(result?.trackingHistory[0]?.timestamp).toBe("2026-01-01");
   });
 
+  it("extracts comment and nested location name from tracking events", () => {
+    const payload = {
+      events: [
+        {
+          eventDate: "2026-05-10T08:00:00Z",
+          code: "PICKED_UP",
+          comment: "Picked up",
+          location: { name: "Stockholm", countryCode: "SE" },
+        },
+      ],
+    };
+
+    const result = parseShipment(payload, { reference: "1806203236" });
+
+    expect(result?.trackingHistory[0]?.timestamp).toBe("2026-05-10T08:00:00Z");
+    expect(result?.trackingHistory[0]?.description).toBe("Picked up");
+    expect(result?.trackingHistory[0]?.location).toBe("Stockholm");
+  });
+
   it("returns null for unparseable input", () => {
     expect(parseShipment("not an object", { reference: "x" })).toBeNull();
     expect(parseShipment(null, { reference: "x" })).toBeNull();
