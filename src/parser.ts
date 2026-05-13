@@ -232,12 +232,12 @@ function parseEvents(raw: unknown): TrackingEvent[] {
         "comment",
       ]),
       location: pickString(entry, [
-        "location",
+        "location.name",
         "place",
         "city",
         "site",
-        "location.name",
         "terminal",
+        "location",
       ]),
       packageId: pickString(entry, ["packageId", "package", "pieceId"]),
     };

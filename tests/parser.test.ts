@@ -46,7 +46,9 @@ describe("parseShipment", () => {
       shipment: {
         consignor: { name: "X", city: "Stockholm" },
         consignee: { name: "Y", city: "Oslo" },
-        events: [{ time: "2026-01-01", code: "OK", message: "done" }],
+        events: [
+          { time: "2026-01-01", code: "OK", message: "done", site: "Oslo hub" },
+        ],
       },
     };
     const result = parseShipment(payload, { reference: "alt" });
@@ -55,6 +57,29 @@ describe("parseShipment", () => {
     expect(result?.receiver.name).toBe("Y");
     expect(result?.trackingHistory).toHaveLength(1);
     expect(result?.trackingHistory[0]?.timestamp).toBe("2026-01-01");
+    expect(result?.trackingHistory[0]?.description).toBe("done");
+    expect(result?.trackingHistory[0]?.location).toBe("Oslo hub");
+  });
+
+  it("handles comment and location.name on events", () => {
+    const payload = {
+      shipment: {
+        events: [
+          {
+            code: "PICKED_UP",
+            eventDate: "2026-05-10T08:00:00Z",
+            comment: "Picked up",
+            location: { name: "Stockholm", countryCode: "SE" },
+          },
+        ],
+      },
+    };
+    const result = parseShipment(payload, { reference: "alt-new" });
+    expect(result).not.toBeNull();
+    expect(result?.trackingHistory).toHaveLength(1);
+    expect(result?.trackingHistory[0]?.timestamp).toBe("2026-05-10T08:00:00Z");
+    expect(result?.trackingHistory[0]?.description).toBe("Picked up");
+    expect(result?.trackingHistory[0]?.location).toBe("Stockholm");
   });
 
   it("returns null for unparseable input", () => {
