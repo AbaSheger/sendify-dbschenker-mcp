@@ -1,7 +1,24 @@
 {
   "name": "sendify-dbschenker-mcp",
   "version": "1.0.0",
-  "description": "MCP server that tracks DB Schenker shipments via the public tracking endpoint.",
+  "description": "MCP server for tracking DB Schenker/DSV shipments via the public tracking flow with structured shipment, package, and tracking event data.",
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "typescript",
+    "nodejs",
+    "zod",
+    "logistics",
+    "shipment-tracking",
+    "db-schenker",
+    "dsv",
+    "api-integration",
+    "web-integration",
+    "vitest",
+    "sendify",
+    "code-challenge"
+  ],
   "type": "module",
   "main": "dist/server.js",
   "bin": {
